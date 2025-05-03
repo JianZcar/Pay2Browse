@@ -8,6 +8,8 @@ RUN apt-get update && \
 			apache2 \
 			php8.2 \
 			libapache2-mod-php8.2 \
+      php8.2-sqlite3 \
+			sqlite3 \
 			dnsmasq \
 			iproute2 \
 			iptables \

@@ -63,9 +63,37 @@ iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport 5094 -m set ! --match-s
 # 8) NAT Internet for allowed clients (MASQUERADE via correct interface)
 iptables -t nat -A POSTROUTING -m set --match-set allowed src -o "$IFACE" -j MASQUERADE
 
-# Enable IP forwarding for the container
-echo 1 > /proc/sys/net/ipv4/ip_forward
+# 9) Initialize DB
+DB_DIR="/var/www/html/data"
+DB_PATH="$DB_DIR/db.sqlite"
+mkdir -p "$DB_DIR"
+chown www-data:www-data "$DB_DIR"
+chmod 755 "$DB_DIR"
 
-# 9) Start services
+sqlite3 "$DB_PATH" <<EOF
+CREATE TABLE admin (
+    password TEXT NOT NULL
+);
+
+INSERT INTO admin (password) VALUES ('admin@supercool789');
+
+CREATE TABLE requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT NOT NULL,
+    status INTEGER NOT NULL CHECK(status IN (0, 1)), -- 0 = pending, 1 = active
+    duration INTEGER NOT NULL, -- in seconds
+    start_time TIMESTAMP,      -- set manually when status = 1
+    end_time TIMESTAMP         -- calculated manually when start_time is set
+);
+
+CREATE TABLE whitelist (
+    ip TEXT PRIMARY KEY
+);
+EOF
+
+chown www-data:www-data "$DB_PATH"
+chmod 664 "$DB_PATH"
+
+# 10) Start services
 dnsmasq --no-daemon &
 apachectl -D FOREGROUND
