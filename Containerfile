@@ -29,9 +29,9 @@ RUN echo "www-data ALL=(root) NOPASSWD: /usr/bin/at" >> /etc/sudoers.d/www-data-
     
 RUN a2enmod php8.2
 
-COPY index.php /var/www/html/index.php
-COPY pay2browse.conf /etc/apache2/sites-available/pay2browse.conf
-COPY start.sh /start.sh
+COPY page/ /var/www/html/
+COPY config/pay2browse.conf /etc/apache2/sites-available/pay2browse.conf
+COPY bin/start.sh /start.sh
 
 RUN chmod +x /start.sh
 
