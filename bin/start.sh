@@ -76,19 +76,6 @@ CREATE TABLE admin (
 );
 
 INSERT INTO admin (password) VALUES ('admin@supercool789');
-
-CREATE TABLE requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ip TEXT NOT NULL,
-    status INTEGER NOT NULL CHECK(status IN (0, 1)), -- 0 = pending, 1 = active
-    duration INTEGER NOT NULL, -- in seconds
-    start_time TIMESTAMP,      -- set manually when status = 1
-    end_time TIMESTAMP         -- calculated manually when start_time is set
-);
-
-CREATE TABLE whitelist (
-    ip TEXT PRIMARY KEY
-);
 EOF
 
 chown www-data:www-data "$DB_PATH"

@@ -1,30 +1,46 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+$lastOctet = isset($_GET['ip']) ? intval($_GET['ip']) : 0;
+$duration  = isset($_GET['dur']) ? intval($_GET['dur']) : 0;
 
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-if ($id <= 0) {
-    die('Invalid request ID.');
+if ($lastOctet <= 0 || $lastOctet > 255 || $duration <= 0) {
+    die('Invalid parameters.');
 }
 
-$db = new SQLite3('/var/www/html/data/db.sqlite');
-$stmt = $db->prepare('SELECT ip, duration FROM requests WHERE id = :id');
-$stmt->bindValue(':id', $id, SQLITE3_INTEGER);
-$res = $stmt->execute();
-$request = $res->fetchArray(SQLITE3_ASSOC);
-if (!$request) {
-    die('Request not found.');
+$ipPrefix  = '200.200.200.';
+$clientIp  = $ipPrefix . $lastOctet;
+$hours     = round($duration / 3600, 2); 
+
+if (!filter_var($clientIp, FILTER_VALIDATE_IP)) {
+    die('Malformed client IP.');
 }
 
-$ip         = htmlspecialchars($request['ip'],     ENT_QUOTES, 'UTF-8');
-$hours      = $request['duration'] / 3600;
-$approveUrl = sprintf('http://200.200.200.1/approve/?id=%d', $id);
+// Check if IP is already in the "allowed" ipset and get remaining time
+$ipAllowed = false;
+$remaining = 0;
+
+exec('sudo /usr/sbin/ipset list allowed -o save 2>/dev/null', $output, $status);
+foreach ($output as $line) {
+    if (preg_match('/^add allowed\s+' . preg_quote($clientIp, '/') . '\s+timeout\s+(\d+)/', $line, $m)) {
+        $ipAllowed = true;
+        $remaining = (int)$m[1];
+        break;
+    }
+}
+
+$isExtension = $ipAllowed;
+
+// Build the approval URL
+$approveUrl = sprintf(
+    'http://200.200.200.1/approve/?ip=%d&dur=%d',
+    $lastOctet,
+    $duration
+);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Request #<?= $id ?> Submitted</title>
+  <title><?= $isExtension ? 'Extension' : 'Request' ?> for <?= htmlspecialchars($clientIp) ?> (<?= $hours ?>h)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="./favicon.png">
   <link href="../css/output.css" rel="stylesheet">
@@ -32,14 +48,18 @@ $approveUrl = sprintf('http://200.200.200.1/approve/?id=%d', $id);
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
   <div class="bg-white p-8 rounded-2xl shadow-lg text-center space-y-6 max-w-md w-full">
-    <h1 class="text-3xl font-extrabold text-gray-800">Access Request Submitted</h1>
-    <p class="text-lg text-gray-700"><strong>IP Address:</strong> <?= $ip ?></p>
-    <p class="text-lg text-gray-700"><strong>Duration:</strong> <?= $hours ?> hour(s)</p>
-    <p class="text-lg text-gray-700"><strong>Please pay at the counter</strong></p>
+    <h1 class="text-3xl font-extrabold text-gray-800">
+      <?= $isExtension ? 'Extension Request' : 'Internet Access Request' ?>
+    </h1>
 
+    <p class="text-lg text-gray-700"><strong>IP Address:</strong> <?= htmlspecialchars($clientIp) ?></p>
+    <p class="text-lg text-gray-700"><strong>Duration:</strong> <?= $hours ?> hour<?= $hours != 1 ? 's' : '' ?></p>
+    <p class="text-lg text-gray-700">
+      <strong>Please pay at the counter to complete your <?= $isExtension ? 'extension' : 'request' ?>.</strong>
+    </p>
 
     <div class="mt-4">
-      <h2 class="text-xl font-semibold text-gray-800 mb-2">Scan to Approve</h2>
+      <h2 class="text-xl font-semibold text-gray-800 mb-2">Scan to <?= $isExtension ? 'Extend' : 'Approve' ?></h2>
       <div class="flex justify-center">
         <div id="qrcode"></div>
       </div>
@@ -47,18 +67,16 @@ $approveUrl = sprintf('http://200.200.200.1/approve/?id=%d', $id);
 
     <p class="text-sm text-gray-600">
       Or visit:<br>
-      <a href="<?= $approveUrl ?>" class="text-blue-600 hover:underline break-words">
-        <?= $approveUrl ?>
+      <a href="<?= htmlspecialchars($approveUrl) ?>" class="text-blue-600 hover:underline break-words">
+        <?= htmlspecialchars($approveUrl) ?>
       </a>
     </p>
   </div>
 
-  <!-- load your local copy of qrcode.min.js -->
   <script src="/js/qrcode.min.js"></script>
   <script>
-    // after the library loads, draw into #qrcode
     new QRCode(document.getElementById("qrcode"), {
-      text: "<?= $approveUrl ?>",
+      text: "<?= addslashes($approveUrl) ?>",
       width: 200,
       height: 200,
       correctLevel: QRCode.CorrectLevel.L
