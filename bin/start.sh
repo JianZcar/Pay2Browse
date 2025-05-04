@@ -29,19 +29,28 @@ a2enmod rewrite
 # 3) Configure dnsmasq (captive-portal behavior) with corrected gateway
 cat > /etc/dnsmasq.conf <<EOF
 interface=$IFACE
-dhcp-range=200.200.200.100,200.200.200.200,12h
-dhcp-option=3,$PORTAL_IP       # Use portal IP as gateway
-dhcp-option=6,$PORTAL_IP       # DNS set to portal (redirected by iptables if allowed)
-address=/#/$PORTAL_IP
-log-queries
-log-dhcp
+bind-interfaces
 
+# Speed optimizations
+dhcp-option=26,1500
+dhcp-authoritative
+dhcp-rapid-commit
+
+# DHCP range & timings
+dhcp-range=200.200.200.100,200.200.200.200,12h
+dhcp-option=3,$PORTAL_IP       # gateway
+dhcp-option=6,$PORTAL_IP       # DNS
+
+# Captive-portal DNS redirection
+address=/#/$PORTAL_IP
 address=/connectivitycheck.gstatic.com/$PORTAL_IP
 address=/connectivitycheck.android.com/$PORTAL_IP
 address=/generate_204/$PORTAL_IP
 address=/clients3.google.com/$PORTAL_IP
 address=/play.googleapis.com/$PORTAL_IP
 address=/sentinel-lm.samsung.com/$PORTAL_IP
+
+log-dhcp
 EOF
 
 # 4) Initialize ipset (allowed clients set)
